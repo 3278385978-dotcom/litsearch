@@ -107,9 +107,12 @@ const EXTRACT_JS = `(function(){
   });
 })()`;
 
+// 纬度"无结果"文案实测是「未找到与检索词相关的内容或信息」，
+// 之前只匹配"暂无数据/没有找到/无相关结果"→ 无结果时被误判成"页面没渲染"，
+// 白等 45s×2 后报"网络慢"。这里补齐所有已知无结果文案。
 const READY_COND =
   `document.querySelectorAll('article.article').length > 0` +
-  ` || /暂无数据|没有找到|无相关结果/.test(document.body.innerText)`;
+  ` || /暂无数据|没有找到|无相关结果|未找到|无结果|没有结果/.test(document.body.innerText)`;
 
 function searchUrl(keyword) {
   return `${SEARCH_BASE}?val=${encodeURIComponent(keyword)}`;
