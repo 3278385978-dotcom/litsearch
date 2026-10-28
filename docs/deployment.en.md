@@ -24,7 +24,7 @@ installing playwright/puppeteer is not always possible.
 
 | # | Requirement | Check | If missing |
 |---|---|---|---|
-| 1 | Node **≥22** (macOS ≥20, Windows ≥22) | `node -v` | install Node (`cdp.js` needs native WebSocket) |
+| 1 | Node **≥22** | `node -v` | install Node (`cdp.js` needs native WebSocket) |
 | 2 | Chrome (or Chromium/Edge) | macOS: `ls "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"`; Windows: `dir "%ProgramFiles%\Google\Chrome\Application\chrome.exe"` | set `LITSEARCH_CHROME` to the binary |
 | 3 | Campus network (IP-based auth) | `node find.js --check` | connect campus Wi-Fi / VPN |
 | 4 | Writable workspace (Chrome profile) | run `node find.js "test" --src=opac` | `LITSEARCH_PROFILE=/tmp/xxx` |
@@ -269,7 +269,7 @@ Cross-platform handling is **built in** (`chrome.js`):
 | Linux + Chromium-based | ✅ implemented, not hardware-tested |
 | Firefox / Safari | ❌ not supported (not CDP; requires a WebDriver layer) |
 
-**Node**: macOS ≥ 20; **Windows ≥ 22** (`cdp.js` needs native WebSocket).
+**Node**: ≥ 22 on all platforms (`cdp.js` needs native WebSocket and `fetch`).
 **Windows troubleshooting**: run `node find.js --check`; if no browser is found set
 `LITSEARCH_CHROME`; for mojibake run `chcp 65001` first.
 

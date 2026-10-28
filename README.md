@@ -1,15 +1,29 @@
 # litsearch — 多源学术检索工具
 
-一个零依赖的命令行工具，用于从多个学术数据库、代码托管平台和图书馆系统中检索题录。
+一个零 npm 依赖的命令行工具（不需要 `npm install`），用于从多个学术数据库、代码托管平台和图书馆系统中检索题录。
 
 - 每个渠道实现为独立适配器（`sources/*.js`），返回统一的数据结构；
 - 新增渠道约 60–100 行，模板见 `sources/_template-http.js` / `_template-browser.js`，
   方法见 `docs/加渠道方法论.md`；
 - 仓库内置 13 个渠道作为示例：CNKI、SPIS、BLYUN、Duxiu、OPAC、Huya、CXStar、
   arXiv、GitHub、OpenAlex、Crossref、DOAJ、PubMed；
-- 无第三方依赖：使用 Node 内置模块，并通过手写的 CDP 客户端驱动本机 Chromium 内核浏览器。
+- 无 npm 依赖：不使用任何第三方包（无 `node_modules`），仅使用 Node 内置模块和项目内代码；
+- 浏览器渠道通过手写的 CDP 客户端驱动本机 Chromium 内核浏览器（见下方"运行条件"）。
 
 [English](README.en.md) | 中文
+
+## 运行条件
+
+| 项 | 要求 |
+|---|---|
+| Node.js | **≥ 22**（代码使用内置 `fetch` 与 `WebSocket`） |
+| 浏览器 | **仅浏览器渠道需要**：本机安装 Chrome / Edge / Chromium / Brave 之一，或用 `LITSEARCH_CHROME` 指定路径 |
+| 网络 | 纯 API 渠道需公网；校内订阅渠道需校园网 / 机构 IP 认证 |
+
+| 渠道 | 是否需要浏览器 |
+|---|---|
+| CNKI、SPIS、OPAC、汇雅、畅想之星、百链、读秀 | 需要 |
+| arXiv、GitHub、OpenAlex、Crossref、DOAJ、PubMed | 不需要 |
 
 ## 使用
 
@@ -57,7 +71,7 @@ node find.js "FDTD" --src=github --lang=python
 
 ## 平台与浏览器
 
-- 支持 macOS / Windows / Linux；Node 版本：macOS ≥ 20，Windows ≥ 22；
+- 支持 macOS / Windows / Linux；Node ≥ 22；
 - 自动探测 Chrome / Edge / Chromium / Brave，可用 `LITSEARCH_CHROME` 指定；
 - 默认无头运行，`--show-chrome` 显示窗口；
 - Firefox / Safari 不支持（不使用 CDP）。

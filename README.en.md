@@ -1,6 +1,6 @@
 # litsearch — Multi-source academic search CLI
 
-A zero-dependency command-line tool for retrieving bibliographic records from
+A command-line tool with zero npm dependencies (no `npm install`) for retrieving bibliographic records from
 multiple academic databases, code hosting platforms and library systems.
 
 - Each channel is an independent adapter (`sources/*.js`) returning a unified structure;
@@ -8,10 +8,25 @@ multiple academic databases, code hosting platforms and library systems.
   `_template-browser.js` and `docs/adding-channels.en.md`;
 - 13 channels are included as examples: CNKI, SPIS, BLYUN, Duxiu, OPAC, Huya, CXStar,
   arXiv, GitHub, OpenAlex, Crossref, DOAJ, PubMed;
-- No third-party dependencies: Node built-ins plus a hand-written CDP client that
-  drives a local Chromium-based browser.
+- Zero npm dependencies: no third-party packages (`node_modules`), only Node built-ins
+  and in-repo code;
+- Browser channels are driven through a hand-written CDP client that controls a local
+  Chromium-based browser (see "Requirements" below).
 
 [中文](README.md) | English
+
+## Requirements
+
+| Item | Requirement |
+|---|---|
+| Node.js | **≥ 22** (code uses built-in `fetch` and `WebSocket`) |
+| Browser | **only for browser channels**: Chrome / Edge / Chromium / Brave installed, or set `LITSEARCH_CHROME` |
+| Network | public APIs need internet; campus channels need campus-network / institutional IP auth |
+
+| Channel | Browser required |
+|---|---|
+| CNKI, SPIS, OPAC, Huya, CXStar, BLYUN, Duxiu | yes |
+| arXiv, GitHub, OpenAlex, Crossref, DOAJ, PubMed | no |
 
 ## Usage
 
@@ -59,7 +74,7 @@ Flags: `--src=`, `--rows=N`, `--pages=N`, `--json`, `--link=detail`,
 
 ## Platforms and browsers
 
-- macOS / Windows / Linux; Node ≥ 20 on macOS, ≥ 22 on Windows;
+- macOS / Windows / Linux; Node ≥ 22;
 - auto-detects Chrome / Edge / Chromium / Brave; `LITSEARCH_CHROME` overrides;
 - headless by default, `--show-chrome` to show the window;
 - Firefox / Safari are not supported (no CDP).
