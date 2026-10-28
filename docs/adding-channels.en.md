@@ -16,6 +16,13 @@
 | Rendered DOM | results in HTML | managed Chrome + injected extraction script |
 | Interactive | pagination / type switch / click-to-resolve | CDP clicks + condition waits |
 
+## Ready-made skeletons
+
+Two templates are included — copy and rename:
+
+- `sources/_template-http.js` — JSON/HTTP channel (~60 lines)
+- `sources/_template-browser.js` — browser channel (~100 lines)
+
 ## Three steps per adapter
 
 1. **Locate**: `Page.navigate`, wait for URL change, `waitFor(result container)`, then

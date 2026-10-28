@@ -1,76 +1,95 @@
-# litsearch — 多源学术检索工具（零依赖）
+# litsearch — 多源学术检索工具
+
+一个零依赖的命令行工具，用于从多个学术数据库、代码托管平台和图书馆系统中检索题录。
+
+- 每个渠道实现为独立适配器（`sources/*.js`），返回统一的数据结构；
+- 新增渠道约 60–100 行，模板见 `sources/_template-http.js` / `_template-browser.js`，
+  方法见 `docs/加渠道方法论.md`；
+- 仓库内置 13 个渠道作为示例：CNKI、SPIS、BLYUN、Duxiu、OPAC、Huya、CXStar、
+  arXiv、GitHub、OpenAlex、Crossref、DOAJ、PubMed；
+- 无第三方依赖：使用 Node 内置模块，并通过手写的 CDP 客户端驱动本机 Chromium 内核浏览器。
 
 [English](README.en.md) | 中文
 
-![license](https://img.shields.io/badge/license-MIT-blue)
-![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
-![channels](https://img.shields.io/badge/channels-13-orange)
-![node](https://img.shields.io/badge/node-%E2%89%A520-blue)
-
-> 一条命令查论文 / 代码 / 图书；13 个数据源适配器统一抽象；
-> 零第三方依赖（Node 内置模块 + 可选本机 Chrome + 手写 CDP 客户端）。
-
-## 为什么用它
-
-- **快**：不等页面 `load`、接口批量请求、抽样式验链 —— 实测 **CNKI 64.2s → 3.5s**、
-  **SPIS 61.7s → 11.8s**、**20 条详情 71.4s → 6.8s**、默认 9 个渠道约 **9 秒**跑完；
-- **零依赖**：不装 playwright/puppeteer，手写 CDP 客户端（约 200 行），拷走就能跑；
-- **13 个渠道**：知网、纬度、百链、读秀、馆藏 OPAC、汇雅、畅想之星 + arXiv、GitHub
-  + OpenAlex、Crossref、DOAJ、PubMed；一个入口统一题录格式；
-- **省 token**：按类型分组（论文/公开库/代码/图书），默认只跑论文+代码，书库和公开库显式开启；
-- **稳**：单渠道失败不影响其它渠道；未配置渠道自动跳过；网络错误标记跳过而不是中断；
-- **机器友好**：`--json` 时 **stdout 只有 JSON**（日志全走 stderr），可直接被脚本/服务调用；
-- **跨平台**：macOS / Windows / Linux，自动探测 Chrome / Edge / Chromium / Brave；
-  默认无头后台，`--show-chrome` 可视化调试；
-- **合规**：只做检索与题录，不绕过订阅、不批量下载；仓库不含任何学校配置或凭据。
-
-## 特点
-
-- **13 个渠道适配器**：知网、纬度学术、百链、读秀、馆藏 OPAC、汇雅、畅想之星、arXiv、GitHub、OpenAlex、Crossref、DOAJ、PubMed
-- **零依赖**：不装 playwright/puppeteer，用 Node 原生 WebSocket 直连 Chrome DevTools
-- **按类型分组**：`papers`（论文）/ `public`（公开库）/ `code`（代码）/ `books`（图书）
-- **配置与代码分离**：学校相关值（域名/机构码/网段）全在 `config.local.js`，**仓库内不含任何学校信息**
-- **失败隔离**：任一渠道失败不影响其它渠道；限流/反爬/编码问题都有对应处理
-- **跨平台**：macOS / Windows / Linux；自动探测 Chrome / Edge / Chromium / Brave
-  （`LITSEARCH_CHROME` 可覆盖）；默认无头后台，`--show-chrome` 可视化调试
-
-## 快速开始
+## 使用
 
 ```bash
-node find.js --check                                   # 环境体检
-node find.js "topological insulator" --rows=5          # 默认：论文+代码
-node find.js "graph neural network" --src=public       # 公开库（免认证，开箱即用）
+node find.js --check                                   # 环境检查
+node find.js "topological insulator" --rows=5          # 论文 + 代码（默认）
+node find.js "graph neural network" --src=public       # 公开库（免认证）
 node find.js "FDTD" --src=github --lang=python
-node find.js "关键词" --show-chrome          # 默认无头后台；此参数显示浏览器窗口
 ```
 
-**校内渠道**（知网/纬度/百链/读数/馆藏/汇雅/畅想）需要：
-1. 本校图书馆开通对应资源（校园网 IP 认证）；
-2. 复制 `config.example.js` 为 `config.local.js`，填写本校域名/机构码；
+校内订阅渠道（CNKI/SPIS/OPAC/Huya/CXStar/BLYUN/Duxiu）需要：
+1. 本校已开通对应资源，并在校园网内；
+2. `cp config.example.js config.local.js` 后填写本校域名/机构码；
 3. 详见 `docs/部署指南.md`。
 
-> 未填写的渠道会**自动跳过**（不会报错）；只接公开库时零配置可用。
+未填写的渠道会在运行时跳过，不影响其它渠道。
+
+## 分组与参数
+
+| 分组 | 包含 | 说明 |
+|---|---|---|
+| `papers` | cnki + spis + blyun（论文类）+ arxiv | 默认 |
+| `public` | openalex + crossref + doaj + pubmed | 免认证，默认关闭 |
+| `code` | github | 默认 |
+| `books` | opac + huya + cxstar + blyun（图书）+ duxiu | 需显式指定 |
+
+常用参数：`--src=`、`--rows=N`、`--pages=N`、`--json`、`--link=detail`、
+`--type=`、`--field=`、`--headless` / `--show-chrome`。
+
+## 输出
+
+- `--json` 时 stdout 仅包含 JSON，日志输出到 stderr；
+- 题录字段：`title / author / source / date / type / url / pdfUrl / articleUrl / detailUrl`；
+- 馆藏与电子书渠道另有 `publisher / year / isbn / callNo / physicalCount / onShelf / ssid / readUrl` 等字段。
+
+## 性能（实测，见 `docs/性能优化.md`）
+
+| 场景 | 优化前 | 优化后 |
+|---|---|---|
+| 知网检索 | 64.2s | 3.5s |
+| 纬度检索 | 61.7s | 11.8s |
+| 馆藏 OPAC | 6.3s | 2.3s |
+| 20 条详情页 | 71.4s | 6.8s |
+| 默认 9 个渠道 | — | 约 9s |
+
+## 平台与浏览器
+
+- 支持 macOS / Windows / Linux；Node 版本：macOS ≥ 20，Windows ≥ 22；
+- 自动探测 Chrome / Edge / Chromium / Brave，可用 `LITSEARCH_CHROME` 指定；
+- 默认无头运行，`--show-chrome` 显示窗口；
+- Firefox / Safari 不支持（不使用 CDP）。
 
 ## 目录
 
 ```
-find.js              入口（分组/参数/统一输出）
-chrome.js            受控 Chrome 启停（独立 profile）
-cdp.js               零依赖 CDP 客户端
-config.js            配置加载器（环境变量 > local > example）
-config.example.js    配置模板
-sources/             13 个渠道适配器
-docs/部署指南.md        任意学校部署/接入指南（中文）
+find.js             入口（参数、分组、渲染）
+chrome.js           受控浏览器启停（跨平台）
+cdp.js              零依赖 CDP 客户端
+config.js           配置加载（环境变量 > config.local.js > config.example.js）
+config.example.js   配置模板
+sources/            13 个渠道适配器 + 2 个新增渠道模板
+docs/               中英文文档（架构、加渠道方法、检索纪律、性能、部署）
 ```
+
+## 文档
+
+| 中文 | English |
+|---|---|
+| `docs/部署指南.md` | `docs/deployment.en.md` |
+| `docs/架构.md` | `docs/architecture.en.md` |
+| `docs/加渠道方法论.md` | `docs/adding-channels.en.md` |
+| `docs/检索纪律.md` | `docs/search-discipline.en.md` |
+| `docs/性能优化.md` | `docs/performance.en.md` |
 
 ## 合规声明
 
-- 本项目只做**检索与题录提取**，不提供任何订阅资源的访问绕过、批量下载或转存；
-- 使用订阅资源（知网/纬度/百维/馆藏/电子书平台等）需自行具备合法访问权限（校园网/机构账号）；
-- 仓库不包含任何学校配置、机构码、账号或凭据；`config.local.js` 被 `.gitignore` 排除。
+- 本项目只做检索与题录提取，不绕过订阅限制，不批量下载，不转存或再分发内容；
+- 使用订阅资源需要自行具备合法访问权限（校园网 / 机构账号）；
+- 仓库不包含任何学校配置、机构码、账号或凭据；`config.local.js` 已被 `.gitignore` 排除。
 
-## 合规
+## License
 
-- 只做**检索与题录**；不批量抓取、不整库转存、不二次分发；
-- 文献传递/求助需本人操作，工具不代提交；
-- `config.local.js` 含学校配置，已被 `.gitignore` 排除，**请勿提交**。
+MIT，见 [LICENSE](LICENSE)。
