@@ -6,6 +6,23 @@
 
 [中文](README.md) | English
 
+## Why use it
+
+- **Fast**: no waiting for `load`, batched API calls, sample-based link verification —
+  measured **CNKI 64.2s → 3.5s**, **SPIS 61.7s → 11.8s**, **20 detail pages 71.4s → 6.8s**,
+  9 channels in ~**9 seconds**;
+- **Zero dependencies**: no playwright/puppeteer; a ~200-line hand-written CDP client;
+- **13 channels**: CNKI, SPIS, BLYUN, Duxiu, OPAC, Huya, CXStar + arXiv, GitHub
+  + OpenAlex, Crossref, DOAJ, PubMed — one unified record format;
+- **Token-efficient**: channel groups (papers/public/code/books); default runs only
+  papers + code, public APIs and book channels are opt-in;
+- **Robust**: per-channel failure isolation, graceful skip for unconfigured channels,
+  network errors marked as skipped instead of aborting;
+- **Machine-friendly**: with `--json`, stdout is JSON only (logs go to stderr);
+- **Cross-platform**: macOS / Windows / Linux; auto-detects Chrome / Edge / Chromium / Brave;
+- **Compliant**: search and bibliographic extraction only — no paywall bypass, no bulk
+  downloads, no institutional config or credentials in the repo.
+
 ## Features
 
 - **13 channel adapters**: CNKI, SPIS, BLYUN, Duxiu, OPAC, Huya, CXStar, arXiv,

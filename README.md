@@ -2,8 +2,27 @@
 
 [English](README.en.md) | 中文
 
+![license](https://img.shields.io/badge/license-MIT-blue)
+![deps](https://img.shields.io/badge/dependencies-0-brightgreen)
+![channels](https://img.shields.io/badge/channels-13-orange)
+![node](https://img.shields.io/badge/node-%E2%89%A520-blue)
+
 > 一条命令查论文 / 代码 / 图书；13 个数据源适配器统一抽象；
 > 零第三方依赖（Node 内置模块 + 可选本机 Chrome + 手写 CDP 客户端）。
+
+## 为什么用它
+
+- **快**：不等页面 `load`、接口批量请求、抽样式验链 —— 实测 **CNKI 64.2s → 3.5s**、
+  **SPIS 61.7s → 11.8s**、**20 条详情 71.4s → 6.8s**、默认 9 个渠道约 **9 秒**跑完；
+- **零依赖**：不装 playwright/puppeteer，手写 CDP 客户端（约 200 行），拷走就能跑；
+- **13 个渠道**：知网、纬度、百链、读秀、馆藏 OPAC、汇雅、畅想之星 + arXiv、GitHub
+  + OpenAlex、Crossref、DOAJ、PubMed；一个入口统一题录格式；
+- **省 token**：按类型分组（论文/公开库/代码/图书），默认只跑论文+代码，书库和公开库显式开启；
+- **稳**：单渠道失败不影响其它渠道；未配置渠道自动跳过；网络错误标记跳过而不是中断；
+- **机器友好**：`--json` 时 **stdout 只有 JSON**（日志全走 stderr），可直接被脚本/服务调用；
+- **跨平台**：macOS / Windows / Linux，自动探测 Chrome / Edge / Chromium / Brave；
+  默认无头后台，`--show-chrome` 可视化调试；
+- **合规**：只做检索与题录，不绕过订阅、不批量下载；仓库不含任何学校配置或凭据。
 
 ## 特点
 
