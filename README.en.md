@@ -15,6 +15,9 @@
 - **Grouped channels**: `papers` / `public` / `code` / `books`
 - **Config/code separation**: institution-specific values live in `config.local.js`;
   the repository contains **no institutional information**
+- **Cross-platform**: macOS / Windows / Linux; auto-detects Chrome / Edge /
+  Chromium / Brave (`LITSEARCH_CHROME` overrides); headless by default,
+  `--show-chrome` for visual debugging
 - **Failure isolation**: one failing channel never breaks the others; unconfigured
   channels are skipped gracefully
 

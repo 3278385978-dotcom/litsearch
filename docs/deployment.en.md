@@ -249,19 +249,31 @@ node find.js "topological insulator" --src=public --rows=3
 # expect: OpenAlex/Crossref/DOAJ/PubMed return results (no campus network needed)
 ```
 
-## 10. Cross-platform (Windows)
+## 10. Cross-platform and browsers
 
-Three spots need platform-specific handling:
+Cross-platform handling is **built in** (`chrome.js`):
 
-| # | Location | macOS | Windows | Fix |
-|---|---|---|---|---|
-| 1 | `CHROME` default | `/Applications/...` | not found | detect `%ProgramFiles%\Google\Chrome\Application\chrome.exe` etc. |
-| 2 | `stopChrome()` | `pkill` | no `pkill` | write PID at launch, kill by PID (`taskkill /PID` / `kill`) |
-| 3 | UA version detection | `chrome --version` | prints nothing | use CDP `Browser.getVersion` or the install-dir version |
+| Capability | Details |
+|---|---|
+| Browser auto-detection | macOS: Chrome / Edge / Chromium / Brave; Windows: `%ProgramFiles%\Google\Chrome\Application\chrome.exe` etc. + Edge/Chromium/Brave; Linux: `google-chrome` / `chromium` / `microsoft-edge` / `brave-browser` |
+| Manual override | `LITSEARCH_CHROME=<path to any Chromium-based browser>` |
+| Process shutdown | a `.chrome.pid` file is written at launch; stop by PID (`kill`, or `taskkill /PID` on Windows), with a debug-port fallback |
+| Headless UA | version read per platform (macOS/Linux: `--version`; Windows: versioned install directory) and a platform-correct UA is sent |
 
-Also: `spawn(..., { windowsHide: true })`; `chcp 65001` for Chinese output;
-**Windows requires Node ≥22**.
+**Support matrix**:
 
+| Platform / browser | Status |
+|---|---|
+| macOS + Chrome / Edge / Chromium / Brave | ✅ tested |
+| Windows + Chrome / Edge | ✅ implemented, **not tested on real hardware** |
+| Linux + Chromium-based | ✅ implemented, not hardware-tested |
+| Firefox / Safari | ❌ not supported (not CDP; requires a WebDriver layer) |
+
+**Node**: macOS ≥ 20; **Windows ≥ 22** (`cdp.js` needs native WebSocket).
+**Windows troubleshooting**: run `node find.js --check`; if no browser is found set
+`LITSEARCH_CHROME`; for mojibake run `chcp 65001` first.
+
+## 11. Dependencies and security
 ## 11. Dependencies and security
 
 - Public APIs need no auth; campus channels rely **only on campus IP authentication**

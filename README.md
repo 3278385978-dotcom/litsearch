@@ -12,6 +12,8 @@
 - **按类型分组**：`papers`（论文）/ `public`（公开库）/ `code`（代码）/ `books`（图书）
 - **配置与代码分离**：学校相关值（域名/机构码/网段）全在 `config.local.js`，**仓库内不含任何学校信息**
 - **失败隔离**：任一渠道失败不影响其它渠道；限流/反爬/编码问题都有对应处理
+- **跨平台**：macOS / Windows / Linux；自动探测 Chrome / Edge / Chromium / Brave
+  （`LITSEARCH_CHROME` 可覆盖）；默认无头后台，`--show-chrome` 可视化调试
 
 ## 快速开始
 
