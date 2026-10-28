@@ -52,6 +52,14 @@ docs/                architecture, channel methodology, discipline, performance 
   (campus network / institutional account).
 - The repository contains no credentials; `config.local.js` is git-ignored.
 
+## Docs
+
+- `docs/architecture.en.md` — architecture and trade-offs
+- `docs/adding-channels.en.md` — recon → implement → acceptance
+- `docs/search-discipline.en.md` — records only, link verification, compliance
+- `docs/performance.en.md` — measurements and rules
+- `docs/deployment.en.md` — generic deployment guide
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
