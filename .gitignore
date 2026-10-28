@@ -1,0 +1,8 @@
+# 本机私有配置（含域名/机构码等）
+config.local.js
+config*.local.js
+# 备份与检索结果
+*.tar.gz
+results/
+# 浏览器会话数据
+.chrome-profile/
