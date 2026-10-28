@@ -1,6 +1,6 @@
 # Deployment guide (generic)
 
-[中文](../重建指南-通用版.md) | English
+[中文](部署指南.md) | English
 
 > Goal: rebuild this tool on **any macOS/Windows machine with campus-network access**
 > by filling a single config file. No third-party dependencies.
@@ -67,7 +67,7 @@ config.js            config loader (env > local > example)
 config.example.js    template
 sources/             13 channel adapters
 docs/                architecture / adding-channels / search-discipline / performance
-重建指南-通用版.md      Chinese deployment guide (this document in English)
+部署指南.md      Chinese deployment guide (this document in English)
 ```
 
 ## 4. Deploy and smoke test

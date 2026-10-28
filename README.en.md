@@ -33,7 +33,7 @@ node find.js "FDTD" --src=github --lang=python
 Campus-subscription channels (CNKI/SPIS/OPAC/Huya/CXStar/BLYUN/Duxiu) require:
 1. your institution's subscription + campus-network authentication;
 2. `cp config.example.js config.local.js` and fill in your endpoints/IDs;
-3. see `重建指南-通用版.md` (Chinese deployment guide) for details.
+3. see `docs/部署指南.md` (Chinese deployment guide) for details.
 
 ## Layout
 
