@@ -93,11 +93,15 @@ async function search(keyword, opts = {}) {
     }
     const ready = await cdp.waitFor(READY_COND, { timeoutMs: 45000, pollMs: 300 });
     if (!ready) throw new Error('汇雅检索页 45s 内没渲染出结果（检查校园网/站点是否可用）');
+    // 页面已明确显示"无结果"时，不再等渐进渲染（省 8s+），直接抽取返回
+    const noResult = await cdp
+      .eval(`/未找到|没有找到|无相关|暂无|无结果|没有结果|抱歉|无检索结果|无数据|没有数据|未检索到|检索结果为空/.test(document.body.innerText)`, { timeoutMs: 8000 })
+      .catch(() => false);
     // 渐进渲染：等卡片数连续两次不变
     let last = -1;
     let stable = 0;
     const dl = Date.now() + 8000;
-    while (Date.now() < dl) {
+    while (!noResult && Date.now() < dl) {
       const n = await cdp
         .eval(`document.querySelectorAll('li.zli_info').length`, { timeoutMs: 8000 })
         .catch(() => -1);

@@ -144,6 +144,15 @@ async function openAndWait(cdp, keyword) {
   }
   const ready = await cdp.waitFor(READY_COND, { timeoutMs: 45000, pollMs: 300 });
   if (!ready) return null;
+  // 页面已明确显示"无结果"时，不再等渐进渲染（省 8s+），直接抽取返回
+  const noResult = await cdp
+    .eval(`/未找到|没有找到|无相关|暂无|无结果|没有结果|抱歉|无检索结果|无数据|没有数据|未检索到|检索结果为空/.test(document.body.innerText)`, { timeoutMs: 8000 })
+    .catch(() => false);
+  if (noResult) {
+    const d0 = JSON.parse(await cdp.eval(EXTRACT_JS, { timeoutMs: 45000 }));
+    d0.noResult = true;
+    return d0;
+  }
   // 页面是**渐进渲染**的：READY 只代表"出现了第一条"，取早了会漏掉后面的卡片。
   // 这里等卡片数量连续两次不变（最多 8s），再取。
   let last = -1;
@@ -508,7 +517,7 @@ async function search(keyword, opts = {}) {
   const cdp = await attachSpis();
   try {
     let first = await openAndWait(cdp, keyword);
-    if (!first || (!first.items.length && !first.institution)) {
+    if (!first || (!first.noResult && !first.items.length && !first.institution)) {
       first = await openAndWait(cdp, keyword); // 重载一次
     }
     if (!first) {

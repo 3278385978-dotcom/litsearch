@@ -172,12 +172,16 @@ async function search(keyword, opts = {}) {
     }
     const ready = await cdp.waitFor(READY_COND, { timeoutMs: 45000, pollMs: 300 });
     if (!ready) throw new Error('读秀结果页 45s 内没渲染出来（检查校园网/站点）');
+    // 页面已明确显示"无结果"时，不再等渐进渲染（省 8s+），直接抽取返回
+    const noResult = await cdp
+      .eval(`/未找到|没有找到|无相关|暂无|无结果|没有结果|抱歉|无检索结果|无数据|没有数据|未检索到|检索结果为空/.test(document.body.innerText)`, { timeoutMs: 8000 })
+      .catch(() => false);
 
     // 5) 稳定后再抽取
     let last = -1;
     let stable = 0;
     const dl2 = Date.now() + 8000;
-    while (Date.now() < dl2) {
+    while (!noResult && Date.now() < dl2) {
       const n = await cdp
         .eval(`document.querySelectorAll('div.books li').length`, { timeoutMs: 8000 })
         .catch(() => -1);

@@ -91,7 +91,7 @@ const EXTRACT_JS = `(function(){
 /** 结果就绪的判定条件（有行，或明确无结果） */
 const READY_COND =
   `document.querySelectorAll('.result-table-list tbody tr').length > 0` +
-  ` || /暂无数据|没有找到|抱歉|无检索结果/.test(document.body.innerText)`;
+  ` || /暂无数据|没有找到|抱歉|无检索结果|未找到|无结果|没有结果|无数据/.test(document.body.innerText)`;
 
 function searchUrl(keyword) {
   return `${SEARCH_BASE}?kw=${encodeURIComponent(keyword)}`;
@@ -144,10 +144,26 @@ async function openAndWait(cdp, keyword, opts = {}) {
   while (Date.now() < navDeadline) {
     await sleep(120);
     const cur = await cdp.eval('location.href', { timeoutMs: 8000 }).catch(() => '');
+    if (/\/verify\//.test(cur || '')) {
+      throw new Error(
+        '知网触发了人机验证（滑块/安全验证），无法自动通过。\n' +
+          '请用 `node find.js ... --show-chrome` 在有界面模式下手动完成一次验证，或稍后重试。'
+      );
+    }
     if (cur === url) break;
   }
   const ready = await cdp.waitFor(READY_COND, { timeoutMs: 45000, pollMs: 300 });
   if (!ready) return null;
+  // 页面已明确显示"无结果"时，不再等渐进渲染（省 8s+），直接抽取返回
+  const noResult = await cdp
+    .eval(`/未找到|没有找到|无相关|暂无|无结果|没有结果|抱歉|无检索结果|无数据|没有数据|未检索到|检索结果为空/.test(document.body.innerText)`, { timeoutMs: 8000 })
+    .catch(() => false);
+  if (noResult) {
+    const d0 = JSON.parse(await cdp.eval(EXTRACT_JS, { timeoutMs: 45000 }));
+    d0.noResult = true;
+    return d0;
+  }
+
   // 等表格行数连续两次不变（页面是渐进渲染的，取早了会漏行）
   let last = -1;
   let stable = 0;
@@ -200,7 +216,7 @@ async function search(keyword, opts = {}) {
     let first = await openAndWait(cdp, keyword, opts);
 
     // 既没结果、也没机构信息 → 判定为渲染失败（而不是真的没结果），重载一次
-    if (!first || (!first.items.length && !first.institution)) {
+    if (!first || (!first.noResult && !first.items.length && !first.institution)) {
       first = await openAndWait(cdp, keyword, opts);
     }
     if (!first) {
