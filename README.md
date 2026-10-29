@@ -97,6 +97,8 @@ docs/               中英文文档（架构、加渠道方法、检索纪律、
 | `docs/加渠道方法论.md` | `docs/adding-channels.en.md` |
 | `docs/检索纪律.md` | `docs/search-discipline.en.md` |
 | `docs/性能优化.md` | `docs/performance.en.md` |
+| `docs/常见错误与404排查.md` | `docs/troubleshooting.en.md` |
+| `docs/给AI的使用说明.md` | `docs/for-ai-agents.en.md` |
 
 ## 合规声明
 
