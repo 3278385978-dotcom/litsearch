@@ -15,7 +15,7 @@
 2. **Batch API calls**: one eval instead of per-item calls — orders of magnitude faster.
 3. **Replace fixed sleeps with condition waits** (with timeouts): first-row change,
    stable card count, etc.
-4. **Fetch everything in one pass**: `--json --link=detail` to disk; never re-run a
+4. **Fetch everything in one pass**: `--json` to disk (SPIS returns detail links by default); never re-run a
    search just to resolve links.
 
 ## Rate limits and stability

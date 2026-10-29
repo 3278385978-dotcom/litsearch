@@ -50,7 +50,7 @@ node find.js "FDTD" --src=github --lang=python
 | `code` | github | 默认 |
 | `books` | opac + huya + cxstar + blyun（图书）+ duxiu | 需显式指定 |
 
-常用参数：`--src=`、`--rows=N`、`--pages=N`、`--json`、`--link=detail`、
+常用参数：`--src=`、`--rows=N`、`--pages=N`、`--json`、`--link=detail|article`（默认 detail：SPIS 站内详情页；article 给出版社原文）、
 `--type=`、`--field=`、`--headless` / `--show-chrome`。
 
 ## 输出

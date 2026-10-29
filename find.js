@@ -24,7 +24,7 @@
  *   --json        输出 JSON（含每条记录的 gid / detailUrl / articleUrl 全字段）
  *   --en          知网切到「外文」库检索（英文论文）
  *   --headless    受控 Chrome 默认即无头后台（不弹窗）；--show-chrome 可临时切有界面
- *   --link=X      SPIS 条目链接：article(出版社原文) | detail(站内详情页，逐条点开+复核，取不到退回原文)
+ *   --link=X      SPIS 条目链接：detail(默认，站内详情页，逐条点开+复核) | article(出版社原文)
  *   --md          输出 Markdown（方便贴进笔记）
  *   --save        同时把 Markdown 存到 results/ 下
  *   --keep-chrome 跑完不关受控 Chrome
@@ -116,8 +116,8 @@ function optsFor(src, flags, group) {
         pages: flags.pages ? Number(flags.pages) : 1,
         // 只对要交付的条数点开取详情（避免先点满 10 条再截断）
         rows: rows,
-        // --link=detail 时真正点开卡片取详情页地址（裸拼 URL 会 404，见 spis.js 头注释）
-        detailLinks: String(flags.link || 'article') === 'detail',
+        // 默认就取详情页（--link=article 才退回出版社原文）；裸拼 URL 会 404，见 spis.js 头注释
+        detailLinks: String(flags.link || 'detail') === 'detail',
       };
     case 'arxiv':
       return { max: rows };
@@ -705,7 +705,7 @@ async function main() {
         '      默认: papers+code（**不含公开库、不查书**；公开库显式 --src=public）\n' +
         '                      [--type=硕士|博士|期刊|会议|图书|学位论文|报纸] [--lang=python] [--min-stars=N] [--en]\n' +
         '                      [--headless] [--show-chrome] [--field=bookname|author|catalog|fulltext]\n' +
-        '                      [--link=article|detail] [--json] [--md] [--save] [--keep-chrome]\n' +
+        '                      [--link=detail|article] [--json] [--md] [--save] [--keep-chrome]\n' +
         '      node find.js --check'
     );
     process.exit(1);
@@ -737,7 +737,7 @@ async function main() {
   }
 
   // SPIS 条目的超链接用哪个：article=出版社原文（默认） detail=站内详情页
-  const linkMode = String(flags.link || 'article').toLowerCase();
+  const linkMode = String(flags.link || 'detail').toLowerCase();
   if (linkMode !== 'article' && linkMode !== 'detail') {
     console.error(`❌ --link 只支持 article 或 detail，收到：${flags.link}`);
     process.exit(1);

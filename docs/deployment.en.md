@@ -108,7 +108,7 @@ node find.js "电动力学" --src=duxiu --rows=3
 | `--src=channel/group` | channels: cnki/spis/blyun/arxiv/github/opac/huya/cxstar/duxiu/openalex/crossref/doaj/pubmed; groups: papers/public/code/books/all |
 | `--rows=N` / `--pages=N` | item count / pages |
 | `--json` | JSON only on stdout (**copy links from here**) |
-| `--link=detail` | site detail page (click-register + API verification) |
+| `--link=detail` | **default**: site detail page (click-register + API verification); `--link=article` for the publisher link |
 | `--en` | search the foreign-language database (CNKI) |
 | `--type=` | type filter (master/doctor/thesis/journal/conference/book/newspaper) |
 | `--field=` | e-book search field (bookname/author/catalog/fulltext) |

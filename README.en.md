@@ -53,7 +53,7 @@ Unconfigured channels are skipped at runtime and do not affect the others.
 | `code` | github | default |
 | `books` | opac + huya + cxstar + blyun (books) + duxiu | explicit only |
 
-Flags: `--src=`, `--rows=N`, `--pages=N`, `--json`, `--link=detail`,
+Flags: `--src=`, `--rows=N`, `--pages=N`, `--json`, `--link=detail|article` (default detail: SPIS site detail page; article: publisher link),
 `--type=`, `--field=`, `--headless` / `--show-chrome`.
 
 ## Output
