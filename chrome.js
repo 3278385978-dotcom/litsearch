@@ -8,7 +8,7 @@
  * 用法：node chrome.js status | launch | stop
  * 环境变量：
  *   LITSEARCH_PORT      调试端口，默认 9222
- *   LITSEARCH_PROFILE   profile 目录，默认本目录 .chrome-profile
+ *   LITSEARCH_PROFILE   profile 目录，默认系统临时目录（任意工作区可写）
  *   LITSEARCH_CHROME    浏览器可执行文件（可指向 Chrome / Edge / Chromium / Brave）
  *   LITSEARCH_HEADLESS  默认无头后台（不弹窗）；设 0 切有界面
  *   LITSEARCH_WINDOW    有界面时的窗口尺寸，默认 1400,900
@@ -21,6 +21,7 @@
 
 const { spawn, execSync } = require('node:child_process');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { DEBUG_PORT, waitForReady, listTargets, sleep } = require('./cdp');
 
@@ -73,8 +74,11 @@ function findChrome() {
 }
 
 const CHROME = findChrome();
-const PROFILE = process.env.LITSEARCH_PROFILE || path.join(__dirname, '.chrome-profile');
-const PID_FILE = path.join(__dirname, '.chrome.pid');
+// profile 默认放系统临时目录：任何 workspace-write 沙箱里都可写。
+// 放在工具目录（如 ~/litsearch 在别人工作区外）会导致 Chrome 写不了 profile/crashpad → 起不来。
+const PROFILE =
+  process.env.LITSEARCH_PROFILE || path.join(os.tmpdir(), 'litsearch-chrome-profile');
+const PID_FILE = path.join(PROFILE, '.litsearch.pid');
 const HOME_URL = process.env.LITSEARCH_HOME || require('./config').home;
 
 function log(...a) {

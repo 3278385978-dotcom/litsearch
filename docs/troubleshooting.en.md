@@ -44,6 +44,7 @@
 |---|---|---|
 | `no Chromium-based browser found` | none installed | install Chrome/Edge/Chromium/Brave, or set `LITSEARCH_CHROME` |
 | browser won't stop | process modified / PID file lost | `node chrome.js stop`; fall back to the debug port (`netstat -ano` on Windows) |
+| `debug port 9222 did not come up in 30000ms` | Chrome exited: profile not writable / port taken / outer sandbox blocks Chrome's own `sandbox_init` | ① upgrade (profile now defaults to the system temp dir); ② `node chrome.js stop` to clear leftovers; ③ run Chrome manually to see the real error; ④ `sandbox initialization failed` means the outer agent sandbox is the limit → run on the host terminal or switch that session to danger-full-access |
 | Windows mojibake | terminal encoding | `chcp 65001` |
 | `JSON.parse` fails | logs mixed into stdout | use `--json`; logs already go to stderr |
 | headless blocked with 403 | anti-automation | UA spoofing is built in; use `--show-chrome` to observe, then treat as anti-bot |

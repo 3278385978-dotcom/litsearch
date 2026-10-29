@@ -270,6 +270,11 @@ Cross-platform handling is **built in** (`chrome.js`):
 | Firefox / Safari | ❌ not supported (not CDP; requires a WebDriver layer) |
 
 **Node**: ≥ 22 on all platforms (`cdp.js` needs native WebSocket and `fetch`).
+
+**The Chrome profile defaults to the system temp directory**
+(`os.tmpdir()/litsearch-chrome-profile`) so the browser can start even when the tool
+directory is read-only (e.g. another agent cannot write `~/litsearch`); override with
+`LITSEARCH_PROFILE`.
 **Windows troubleshooting**: run `node find.js --check`; if no browser is found set
 `LITSEARCH_CHROME`; for mojibake run `chcp 65001` first.
 
