@@ -141,7 +141,7 @@ title, author, source, date, type, url, pdfUrl, articleUrl, detailUrl, detailVer
 | Channel type | Auth | Key point | Pitfall |
 |---|---|---|---|
 | Chinese paper DB (CNKI-like) | campus IP | result rows + institution marker; type facets | don't wait for `load`; type filter is a facet click; headless UA may be blocked (UA spoof built in) |
-| Foreign discovery (SPIS-like) | campus IP | card selector + gid; AJAX pagination | bare detail URLs 404 → register via `POST /api/article/saveDetail` first |
+| Foreign discovery (SPIS-like) | campus IP | card selector + gid; AJAX pagination | bare detail URLs 404 → build `saveDetail` payloads from card DOM and batch-register (a second list-API call overlaps rendered cards only ~2/10; don't use it) |
 | OPAC | no login | same-origin POST with group code | missing group code → 0 results; `canBrrowCountI` often `null` |
 | E-book (Huya-like) | campus IP | card list; `ssid` | reader links carry expiring signatures; `/book/detail` may 404 |
 | E-book (CXStar-like) | campus IP | JSON `POST /esapi/Book/Search` | strict rate limit (429 + retry-after) |

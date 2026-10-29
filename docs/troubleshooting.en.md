@@ -36,6 +36,7 @@
 | OPAC 0 hits | missing group code / multi-word is AND | check `groupCode` in `config.local.js`; use fewer words |
 | channel returns 0 though the site has data | not authenticated → login redirect | `--check`; log in to the campus network |
 | CXStar suddenly fails | 429 rate limit (`retry-after`) | stop retrying; run later |
+| detail mode is slow (~6s per record) | it fell back to per-record clicking | use the current version: `saveDetail` payloads are built from card DOM and registered in one batch (8 records ≈ 4–5s); if still slow, check whether cards are missing/changed so payloads can't be built |
 
 ## 3. Runtime / environment
 

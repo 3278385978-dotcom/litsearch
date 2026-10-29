@@ -69,6 +69,7 @@ Flags: `--src=`, `--rows=N`, `--pages=N`, `--json`, `--link=detail|article` (def
 | CNKI search | 64.2s | 3.5s |
 | SPIS search | 61.7s | 11.8s |
 | OPAC | 6.3s | 2.3s |
+| SPIS detail (8 records) | 42–55s | 4–5s |
 | 20 detail pages | 71.4s | 6.8s |
 | Default 9 channels | — | ~9s |
 

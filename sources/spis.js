@@ -360,40 +360,15 @@ async function clickResolve(cdp, items) {
 }
 
 async function resolveDetailUrls(cdp, items, keyword) {
-  // 快路径（批量）：列表接口拿完整字段 → 一次 eval 内并发探测 → 一次 eval 内并发注册 →
-  // 再一次并发复核。逐条 for 循环本来要 20 条 × 2~3 次往返，这里压到 3 次往返。
-  // 兜底：批量注册仍不上的，再点击卡片标题（见 clickResolve）。
+  // 快路径：先批量探测哪些记录已"注册"（/api/article/data/<gid> 返回对象）；
+  // 未注册的，从**当前页面卡片 DOM** 构造 saveDetail 所需字段，批量 POST 注册，
+  // 再轮询复核。只有极少数构造/注册失败的，才走 clickResolve 逐条点击兜底。
+  //
+  // 为什么不从列表接口另取一遍：实测同一查询的列表接口每次返回的记录集/顺序都在
+  // 浮动，与页面卡片只有 ~2/10 重合，按 gid/标题匹配必然大量落空（旧版因此有
+  // 一半以上条目掉进逐条点击，8 条约 45s）。DOM 里的字段（gid/标题/出版社链接/
+  // 来源/摘要）恰好就是 saveDetail 需要的，直接构造即可 100% 覆盖。
   const targets = items.filter((x) => x.gid);
-
-  const listUrl =
-    '/api/scholar/list/data?val=' +
-    encodeURIComponent(keyword || '') +
-    '&page=0&pageSize=10&sort=&facet=0';
-  let payloads = {};
-  try {
-    payloads = JSON.parse(
-      await cdp.eval(
-        `Promise.all([0,1].map(function(){` +
-          `return fetch(${JSON.stringify(listUrl)},{credentials:'include'})` +
-          `.then(function(r){return r.json()}).then(function(j){return (j.body||{}).datas||[]})` +
-          `.catch(function(){return []})}))` +
-          `.then(function(a){var m={};a.forEach(function(ds){ds.forEach(function(x){if(x&&x.id)m[x.id]=x})});return JSON.stringify(m)})`,
-        { timeoutMs: 25000 }
-      )
-    ) || {};
-  } catch {}
-
-  const titleKey = (t) =>
-    String(t || '')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .toLowerCase();
-  const byTitle = {};
-  Object.keys(payloads).forEach((k) => {
-    const t = titleKey(payloads[k] && payloads[k].title);
-    if (t) byTitle[t] = payloads[k];
-  });
 
   const probeBatch = async (ids) => {
     if (!ids.length) return [];
@@ -412,43 +387,73 @@ async function resolveDetailUrls(cdp, items, keyword) {
 
   let ok = 0;
   const states = await probeBatch(targets.map((x) => x.gid));
-  const toSave = [];
   targets.forEach((item, i) => {
     if (states[i] === 'OK') {
       item.detailUrl = `${SITE}/scholar/detail/${item.gid}`;
       item.detailVerified = true;
       ok++;
-      return;
     }
-    const full = payloads[item.gid] || byTitle[titleKey(item.title)];
-    if (full) toSave.push(full);
   });
 
-  if (toSave.length) {
-    await cdp
-      .eval(
-        `Promise.all(${JSON.stringify(toSave)}.map(function(p){` +
-          `return fetch('/api/article/saveDetail',{method:'POST',credentials:'include',` +
-          `headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).then(function(r){return r.text()})` +
-          `.catch(function(){return ''})})).then(function(){return 'DONE'})`,
-        { timeoutMs: 40000 }
-      )
-      .catch(() => '');
-    await sleep(300);
-    const rest = targets.filter((x) => !x.detailVerified);
-    if (rest.length) {
-      const st2 = await probeBatch(rest.map((x) => x.gid));
-      rest.forEach((item, i) => {
-        if (st2[i] === 'OK') {
+  // 未注册的：从 DOM 卡片构造 saveDetail 载荷（字段见 spis.js 头部/实测抓包）
+  let left = items.filter((x) => !x.detailVerified);
+  if (left.length) {
+    let payloads = [];
+    try {
+      payloads = JSON.parse(
+        await cdp.eval(
+          `(function(){
+            var ids=${JSON.stringify(left.map((x) => x.gid))};
+            function dec(u){try{return decodeURIComponent(u)}catch(e){return u}}
+            var arts=[].slice.call(document.querySelectorAll('article.article'));
+            var out=[];
+            ids.forEach(function(g){
+              var card=null;
+              for(var i=0;i<arts.length;i++){var x=arts[i].querySelector('a[data-dataid]');if(x&&x.getAttribute('data-dataid')===g){card=arts[i];break;}}
+              if(!card) return;
+              var a=card.querySelector('a[data-dataid]');
+              var t=card.querySelector('.d-t');
+              var href='';
+              try{var q=(a.getAttribute('href')||'').split('?')[1]||'';var p={};q.split('&').forEach(function(kv){var i=kv.indexOf('=');if(i>0)p[kv.slice(0,i)]=kv.slice(i+1);});href=dec(p.url||'');}catch(e){}
+              var src=card.querySelector('.d-a div'); src=src?src.innerText.trim():'';
+              var abs=card.querySelector('.d-d'); abs=abs?abs.innerHTML.trim():'';
+              out.push({dataSource:0,href:href,finalHref:href,title:t?t.innerHTML:'',source:src,abstract_:abs,id:g});
+            });
+            return JSON.stringify(out);
+          })()`,
+          { timeoutMs: 25000 }
+        )
+      ) || [];
+    } catch {}
+    if (payloads.length) {
+      await cdp
+        .eval(
+          `Promise.all(${JSON.stringify(payloads)}.map(function(p){` +
+            `return fetch('/api/article/saveDetail',{method:'POST',credentials:'include',` +
+            `headers:{'Content-Type':'application/json'},body:JSON.stringify(p)}).then(function(r){return r.text()})` +
+            `.catch(function(){return ''})})).then(function(){return 'DONE'})`,
+          { timeoutMs: 40000 }
+        )
+        .catch(() => '');
+      const ids = left.map((x) => x.gid);
+      let st = [];
+      for (let round = 0; round < 5; round++) {
+        await sleep(round === 0 ? 250 : 400);
+        st = await probeBatch(ids);
+        if (st.filter((x) => x === 'OK').length === ids.length) break;
+      }
+      left.forEach((item, i) => {
+        if (st[i] === 'OK') {
           item.detailUrl = `${SITE}/scholar/detail/${item.gid}`;
           item.detailVerified = true;
           ok++;
         }
       });
     }
+    left = items.filter((x) => !x.detailVerified);
   }
 
-  let left = items.filter((x) => !x.detailVerified);
+  // 兜底：DOM 里找不到卡片 / 构造失败的极少数条目，再逐条点击
   if (left.length) ok += await clickResolve(cdp, left);
 
   // 最后手段（实测有少数卡片既无 data-dataid、原页面又已重排导致点不到）：
