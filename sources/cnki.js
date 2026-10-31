@@ -199,6 +199,29 @@ async function openAndWait(cdp, keyword, opts = {}) {
   return first;
 }
 
+/** 翻页后等结果行数稳定（渐进渲染会导致过早抽取只拿到一半） */
+async function waitStableRows(cdp, timeoutMs = 15000) {
+  let prev = -1;
+  let stable = 0;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await sleep(250);
+    const n = Number(
+      await cdp
+        .eval("document.querySelectorAll('.result-table-list tbody tr').length")
+        .catch(() => '0')
+    );
+    if (n > 0 && n === prev) {
+      stable++;
+      if (stable >= 2) return n;
+    } else {
+      stable = 0;
+    }
+    prev = n;
+  }
+  return prev;
+}
+
 /**
  * 检索知网总库
  * @param {string} keyword 关键词
@@ -228,6 +251,14 @@ async function search(keyword, opts = {}) {
       throw new Error(
         '知网页面既没有结果行、也没有机构信息，判定为静默失败（不是"没搜到"）。请重跑。'
       );
+    }
+    // 渐进渲染：首页也可能先只渲染出一部分，等行数稳定后重抽一次
+    const nStable = await waitStableRows(cdp);
+    if (nStable > (first.items || []).length) {
+      try {
+        const re = JSON.parse(await cdp.eval(EXTRACT_JS, { timeoutMs: 45000 }));
+        first = Object.assign({}, first, re);
+      } catch {}
     }
 
     // --type：先点侧栏"文献类型"筛选项（真·类型限定），学位论文再按硕/博二次筛
@@ -274,11 +305,20 @@ async function search(keyword, opts = {}) {
       }
     }
 
-    let items = first.items.slice();
-    const seen = new Set(items.map((x) => x.url || x.title));
+    // pageFrom：从第几页开始（1 起）；分页缓存/增量翻页用，默认 1
+    const pageFrom = Math.max(1, Number(opts.pageFrom) || 1);
+    let items = [];
+    const seen = new Set();
+    let collected = 0;
+    if (pageFrom === 1) {
+      items = first.items.slice();
+      items.forEach((x) => seen.add(x.url || x.title));
+      collected = 1;
+    }
 
-    // 翻页
-    for (let p = 2; p <= pages; p++) {
+    // 翻页（只收集 pageFrom..pageFrom+pages-1；之前的页只点过去、不收集）
+    const lastPage = pageFrom + pages - 1;
+    for (let p = 2; p <= lastPage; p++) {
       // 翻页判据必须比较"同一位置"（首行标题）翻页前后是否变化；
       // 之前拿首行去比上一页末行，条件恒真 → 点完立刻抽到旧页（翻页失效）
       const prevFirst = await cdp
@@ -295,12 +335,14 @@ async function search(keyword, opts = {}) {
         { timeoutMs: 30000, pollMs: 400 }
       );
       if (!changed) break;
-      await sleep(250);
+      await waitStableRows(cdp);
       const next = JSON.parse(await cdp.eval(EXTRACT_JS, { timeoutMs: 45000 }));
+      if (p < pageFrom) continue; // 目标页之前的页只路过，不收集
       const fresh = next.items.filter((x) => !seen.has(x.url || x.title));
       if (!fresh.length) break;
       fresh.forEach((x) => seen.add(x.url || x.title));
       items = items.concat(fresh);
+      collected++;
     }
 
     const scannedRows = items.length;
@@ -322,7 +364,8 @@ async function search(keyword, opts = {}) {
       numFound: first.numFound,
       totalPages: first.totalPages,
       categories: first.categories,
-      fetchedPages: pages,
+      fetchedPages: collected,
+      pageFrom,
       typeFilter: opts.type ? String(opts.type) : '',
       typeFacet,
       facetApplied,

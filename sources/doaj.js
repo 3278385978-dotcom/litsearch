@@ -8,7 +8,9 @@ const strip = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' '
 
 async function search(keyword, opts = {}) {
   const rows = Math.min(Math.max(Number(opts.rows) || 8, 1), 50);
-  const url = `${API}/${encodeURIComponent(keyword)}?pageSize=${rows}`;
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const page = Math.floor(offset / rows) + 1;
+  const url = `${API}/${encodeURIComponent(keyword)}?page=${page}&pageSize=${rows}`;
   let j = {};
   let lastErr = '';
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -25,7 +27,7 @@ async function search(keyword, opts = {}) {
     if ((j.results || []).length) break;
     await new Promise((r) => setTimeout(r, 1200)); // 空结果可能是瞬时限流
   }
-  const items = (j.results || []).map((r) => {
+  let items = (j.results || []).map((r) => {
     const b = r.bibjson || {};
     const doi = (b.identifier || []).filter((x) => /doi/i.test(x.type || '')).map((x) => x.id)[0] || '';
     const links = b.link || [];
@@ -41,6 +43,9 @@ async function search(keyword, opts = {}) {
       type: 'article',
     };
   });
+  // 页内偏移
+  items = items.slice(offset - (page - 1) * rows, offset - (page - 1) * rows + rows);
+
   return {
     source: 'doaj', label: 'DOAJ（开放获取）', keyword,
     numFound: j.total || items.length,

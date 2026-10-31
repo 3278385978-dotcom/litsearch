@@ -29,9 +29,12 @@ async function search(keyword, opts = {}) {
   if (opts.minStars) parts.push(`stars:>=${Number(opts.minStars)}`);
 
   const sort = opts.sort === 'best-match' ? '' : (opts.sort || 'stars');
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const page = Math.floor(offset / max) + 1;
   const params = new URLSearchParams({
     q: parts.join(' '),
     per_page: String(max),
+    page: String(page),
   });
   if (sort) {
     params.set('sort', sort);
@@ -61,7 +64,7 @@ async function search(keyword, opts = {}) {
     throw new Error(`GitHub 检索失败：${msg}`);
   }
 
-  const items = (body.items || []).map((r) => ({
+  let items = (body.items || []).map((r) => ({
     name: r.full_name,
     stars: r.stargazers_count,
     forks: r.forks_count,
@@ -73,6 +76,10 @@ async function search(keyword, opts = {}) {
     url: r.html_url,
     license: r.license ? r.license.spdx_id : '',
   }));
+
+  // 页内偏移：GitHub 只能按 page 跳，页内再切
+  const pageStart = (page - 1) * max;
+  items = items.slice(offset - pageStart, offset - pageStart + max);
 
   const res_ = {
     source: 'github',

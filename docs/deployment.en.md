@@ -109,6 +109,8 @@ node find.js "电动力学" --src=duxiu --rows=3
 | `--rows=N` / `--pages=N` | item count / pages |
 | `--json` | JSON only on stdout (**copy links from here**) |
 | `--link=detail` | **default**: site detail page (click-register + API verification); `--link=article` for the publisher link |
+| `--offset=N` | skip the first N records (0-based); pair with `--rows` for incremental paging (cached pages are not re-fetched) |
+| `--no-cache` / `--refresh` / `--cache-ttl=SEC` / `--clear-cache` | result cache control (30 min TTL, macOS `~/Library/Caches/litsearch`) |
 | `--en` | search the foreign-language database (CNKI) |
 | `--type=` | type filter (master/doctor/thesis/journal/conference/book/newspaper) |
 | `--field=` | e-book search field (bookname/author/catalog/fulltext) |

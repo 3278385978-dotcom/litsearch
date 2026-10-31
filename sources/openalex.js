@@ -8,12 +8,14 @@ const API = 'https://api.openalex.org/works';
 
 async function search(keyword, opts = {}) {
   const rows = Math.min(Math.max(Number(opts.rows) || 10, 1), 50);
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const page = Math.floor(offset / rows) + 1;
   const sel = 'id,display_name,publication_year,doi,cited_by_count,authorships,primary_location,type';
-  const url = `${API}?search=${encodeURIComponent(keyword)}&per-page=${rows}&select=${sel}`;
+  const url = `${API}?search=${encodeURIComponent(keyword)}&per-page=${rows}&page=${page}&select=${sel}`;
   const res = await fetch(url, { headers: { 'User-Agent': 'litsearch/1.0 (mailto:none@example.com)' } });
   if (!res.ok) throw new Error(`OpenAlex HTTP ${res.status}`);
   const j = await res.json();
-  const items = (j.results || []).map((w) => ({
+  let items = (j.results || []).map((w) => ({
     title: w.display_name || '',
     author: (w.authorships || []).map((a) => a.author && a.author.display_name).filter(Boolean).slice(0, 8).join('; '),
     source: (w.primary_location && w.primary_location.source && w.primary_location.source.display_name) || '',
@@ -23,6 +25,8 @@ async function search(keyword, opts = {}) {
     cited: w.cited_by_count || 0,
     type: w.type || '',
   }));
+  items = items.slice(offset - (page - 1) * rows, offset - (page - 1) * rows + rows);
+
   return {
     source: 'openalex', label: 'OpenAlex（公开）', keyword,
     numFound: (j.meta && j.meta.count) || items.length,

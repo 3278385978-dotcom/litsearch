@@ -179,6 +179,27 @@ async function openAndWait(cdp, keyword) {
 }
 
 /** 点到第 n 页（SPIS 翻页不改 URL，只能点） */
+/** 翻页后等列表条数稳定（渐进渲染会导致过早抽取只拿到一半） */
+async function waitStableItems(cdp, timeoutMs = 15000) {
+  let prev = -1;
+  let stable = 0;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await sleep(250);
+    const n = Number(
+      await cdp.eval("document.querySelectorAll('article.article').length").catch(() => '0')
+    );
+    if (n > 0 && n === prev) {
+      stable++;
+      if (stable >= 2) return n;
+    } else {
+      stable = 0;
+    }
+    prev = n;
+  }
+  return prev;
+}
+
 async function gotoClientsidePage(cdp, n, prevFirstTitle) {
   const clicked = await cdp.eval(
     `(function(){` +
@@ -531,20 +552,42 @@ async function search(keyword, opts = {}) {
     if (!first.items.length && !first.institution) {
       throw new Error('SPIS 页面既没有结果、也没有机构信息，判定为静默失败（不是"没搜到"）。请重跑。');
     }
+    // 渐进渲染：首页也可能先只渲染出 1 条，等条数稳定后重抽一次
+    const nStable = await waitStableItems(cdp);
+    if (nStable > (first.items || []).length) {
+      try {
+        const re = JSON.parse(await cdp.eval(EXTRACT_JS, { timeoutMs: 45000 }));
+        first = Object.assign({}, first, re);
+      } catch {}
+    }
 
-    let items = first.items.slice();
-    const seen = new Set(items.map((x) => x.gid || x.title));
+    // pageFrom：从第几页开始（1 起）；分页缓存/增量翻页用，默认 1
+    const pageFrom = Math.max(1, Number(opts.pageFrom) || 1);
+    let items = [];
+    const seen = new Set();
+    let collected = 0;
+    let curFirst = first.items.length ? first.items[0].title : '';
+    if (pageFrom === 1) {
+      items = first.items.slice();
+      items.forEach((x) => seen.add(x.gid || x.title));
+      collected = 1;
+    }
 
-    for (let p = 2; p <= pages; p++) {
-      const prevFirst = items.length ? items[0].title : '';
-      const ok = await gotoClientsidePage(cdp, p, prevFirst);
+    const lastPage = pageFrom + pages - 1;
+    for (let p = pageFrom === 1 ? 2 : pageFrom; p <= lastPage; p++) {
+      const ok = await gotoClientsidePage(cdp, p, curFirst);
       if (!ok) break;
-      await sleep(700);
+      await waitStableItems(cdp);
       const next = JSON.parse(await cdp.eval(EXTRACT_JS, { timeoutMs: 45000 }));
+      if (next.items.length) curFirst = next.items[0].title;
       const fresh = next.items.filter((x) => !seen.has(x.gid || x.title));
       if (!fresh.length) break;
       fresh.forEach((x) => seen.add(x.gid || x.title));
       items = items.concat(fresh);
+      collected++;
+    }
+    if (pageFrom > 1 && !collected) {
+      throw new Error('SPIS 分页控件到不了该页（可先用 --pages 顺序抓取，或用更小的 --offset）');
     }
 
     if (opts.rows && items.length > Number(opts.rows)) {
@@ -566,6 +609,8 @@ async function search(keyword, opts = {}) {
       institution: first.institution,
       numFound: first.numFound,
       pageText: first.pageText,
+      pageFrom,
+      fetchedPages: collected,
       oaCount: items.filter((x) => x.hasDownload).length,
       detailLinks: !!opts.detailLinks,
       detailResolved,

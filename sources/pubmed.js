@@ -26,7 +26,8 @@ async function fetchJson(url, tries = 2) {
 
 async function search(keyword, opts = {}) {
   const rows = Math.min(Math.max(Number(opts.rows) || 10, 1), 50);
-  const es = `${BASE}/esearch.fcgi?db=pubmed&retmode=json&sort=relevance&retmax=${rows}&term=${encodeURIComponent(keyword)}`;
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const es = `${BASE}/esearch.fcgi?db=pubmed&retmode=json&sort=relevance&retstart=${offset}&retmax=${rows}&term=${encodeURIComponent(keyword)}`;
   const j1 = await fetchJson(es);
   const ids = (j1.esearchresult && j1.esearchresult.idlist) || [];
   const total = Number((j1.esearchresult && j1.esearchresult.count) || 0);

@@ -8,9 +8,10 @@ const strip = (s) => String(s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' '
 
 async function search(keyword, opts = {}) {
   const rows = Math.min(Math.max(Number(opts.rows) || 10, 1), 50);
+  const offset = Math.max(0, Number(opts.offset) || 0);
   const fetchRows = Math.min(rows * 4, 100); // 多取一些：component 类记录会被过滤掉
   const sel = 'DOI,title,author,container-title,published,is-referenced-by-count,URL,type';
-  const url = `${API}?query=${encodeURIComponent(keyword)}&rows=${fetchRows}&select=${sel}`;
+  const url = `${API}?query=${encodeURIComponent(keyword)}&rows=${fetchRows}&offset=${offset}&select=${sel}`;
   const res = await fetch(url, { headers: { 'User-Agent': 'litsearch/1.0 (mailto:none@example.com)' } });
   if (!res.ok) throw new Error(`Crossref HTTP ${res.status}`);
   const j = await res.json();
@@ -30,9 +31,8 @@ async function search(keyword, opts = {}) {
   }));
   return {
     source: 'crossref', label: 'Crossref（DOI）', keyword,
-    items: items.slice(0, rows),
     numFound: m['total-results'] || items.length,
-    items,
+    items: items.slice(0, rows),
     note: 'Crossref 免认证；覆盖 DOI 注册的期刊/会议/图书章节',
   };
 }

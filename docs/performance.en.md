@@ -18,6 +18,17 @@
 4. **Fetch everything in one pass**: `--json` to disk (SPIS returns detail links by default); never re-run a
    search just to resolve links.
 
+## Incremental paging (2026-10-29)
+
+| Scenario | Before | After |
+|---|---|---|
+| Requesting 10/20/30 records in sequence (SPIS) | re-fetched from page 1 every time (1+2+3 = 6 pages) | only missing pages are fetched (3 pages total) |
+| Re-requesting already-fetched pages | new browser + full re-fetch | full cache hit **0.05–0.08s** (no Chrome start) |
+
+Page-level cache (30 min TTL) + `--offset` window; missing pages are fetched in contiguous
+blocks; only fixed-page-size channels benefit (CNKI 20/page, SPIS 10/page); HTTP channels
+map `--offset` directly onto their pagination parameters.
+
 ## Rate limits and stability
 
 - Throttle aggressive sites (e.g. CXStar: bursts trigger 429 with `retry-after`; wait

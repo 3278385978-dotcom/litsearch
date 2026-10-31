@@ -15,8 +15,9 @@
  *   --src=a,b,c   渠道或分组（papers/code/books），默认 papers+code，不含书库
  *                 可选：cnki(知网) spis(纬度学术·外文发现+文献求助) arxiv(开放论文)
  *                       github(代码) opac(馆藏教材)
- *   --rows=N      每个渠道要几条（默认：cnki 20 / spis 10 / arxiv 10 / github 8 / opac 10）
- *   --pages=N     翻几页（知网每页 20 条；SPIS 每页 10 条）
+ *   --rows=N      本次要几条（默认：cnki 20 / spis 10 / arxiv 10 / github 8 / opac 10）
+ *   --offset=N    跳过前 N 条（0 起；配合 --rows 实现"再给我下面 10 条"，已抓过的页不会重抓）
+ *   --pages=N     翻几页（兼容旧用法；有固定页大小的渠道 = offset 0 起抓 N 页）
  *   --type=X      知网按文献类型过滤
  *   --field=X     huya 检索字段：bookname(书名，默认)/author/catalog/fulltext：硕士 / 博士 / 期刊 / 会议
  *   --lang=python GitHub 语言过滤
@@ -37,6 +38,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { ensureChrome, stopChrome, isUp } = require('./chrome');
 const CFG = require('./config');
+const cache = require('./cache');
+
+/** 有固定页大小的渠道（可做页级缓存 / 增量翻页） */
+const PAGE_SIZE = { cnki: 20, spis: 10 };
+/** 支持 offset 的 HTTP 渠道（适配器自己处理偏移） */
+const SUPPORTS_OFFSET = new Set(['arxiv', 'github', 'crossref', 'doaj', 'openalex', 'pubmed']);
 
 const SOURCES = {
   cnki: { mod: './sources/cnki', browser: true, label: '知网 CNKI' },
@@ -101,6 +108,112 @@ const SITE_OF = {
   duxiu: () => CFG.duxiu.site,
 };
 
+/** 缓存键里的过滤条件（同一查询不同过滤不能混用缓存） */
+function filterKey(flags) {
+  return {
+    type: flags.type || '',
+    field: flags.field || '',
+    en: !!flags.en,
+    lang: flags.lang || '',
+    minStars: flags['min-stars'] || '',
+    link: String(flags.link || 'detail'),
+  };
+}
+
+/** 本次每个渠道要几条；--pages 兼容旧语义（固定页大小渠道 = 页数 × 页大小） */
+function rowsFor(src, flags) {
+  let rows = flags.rows ? Number(flags.rows) : DEFAULT_ROWS[src];
+  if (flags.pages && PAGE_SIZE[src]) rows = Number(flags.pages) * PAGE_SIZE[src];
+  return Math.max(1, rows);
+}
+
+/**
+ * 页级缓存路径：按"页"读取/补齐缓存，只抓缺的页。
+ * 返回的 items 已按 offset/rows 截好（窗口 = [offset, offset+rows)）。
+ */
+async function runPagedSource(src, keyword, flags, group, rows, offset, ensureBrowser) {
+  const mod = require(SOURCES[src].mod);
+  const ps = PAGE_SIZE[src];
+  const filters = filterKey(flags);
+  const ttl = flags['cache-ttl'] ? Number(flags['cache-ttl']) * 1000 : cache.TTL_MS;
+  let rec = flags['no-cache'] || flags.refresh ? null : cache.load(src, keyword, filters, ttl);
+
+  const pageFrom = Math.floor(offset / ps) + 1;
+  const pageTo = Math.max(pageFrom, Math.floor((offset + rows - 1) / ps) + 1);
+  const base = rec || {
+    v: 1,
+    source: src,
+    keyword,
+    filters,
+    pageSize: ps,
+    pages: {},
+    numFound: 0,
+    extra: {},
+  };
+
+  const missing = [];
+  for (let p = pageFrom; p <= pageTo; p++) if (!base.pages[p]) missing.push(p);
+
+  let fetched = 0;
+  if (missing.length) {
+    // 把缺失页拆成连续块：只抓缺的页，已缓存的页不重抓
+    const blocks = [];
+    for (const p of missing) {
+      const last = blocks[blocks.length - 1];
+      if (last && last.to + 1 === p) last.to = p;
+      else blocks.push({ from: p, to: p });
+    }
+    for (const b of blocks) {
+      if (SOURCES[src].browser && ensureBrowser) await ensureBrowser();
+      const opts = Object.assign({}, optsFor(src, flags, group), {
+        pageFrom: b.from,
+        pages: b.to - b.from + 1,
+        rows: 0, // 分页路径由 find.js 按页切，adapter 不要按 rows 截断
+      });
+      const data = await mod.search(keyword, opts);
+      const chunks = [];
+      for (let i = 0; i < (data.items || []).length; i += ps) chunks.push(data.items.slice(i, i + ps));
+      chunks.forEach((ch, i) => {
+        if (b.from + i <= b.to) base.pages[b.from + i] = ch;
+      });
+      fetched += chunks.length;
+      if (data.numFound != null) base.numFound = data.numFound;
+      base.extra = {
+        onCampus: data.onCampus,
+        institution: data.institution || '',
+        totalPages: data.totalPages,
+        categories: data.categories,
+        typeFilter: data.typeFilter,
+        typeFacet: data.typeFacet,
+        facetApplied: data.facetApplied,
+      };
+    }
+    base.savedAt = Date.now();
+    if (!flags['no-cache']) cache.save(base);
+  }
+
+  const all = [];
+  for (let p = pageFrom; p <= pageTo; p++) if (base.pages[p]) all.push(...base.pages[p]);
+  const startIdx = offset - (pageFrom - 1) * ps;
+  const items = all.slice(startIdx, startIdx + rows);
+
+  return Object.assign({}, base.extra, {
+    ok: true,
+    source: src,
+    label: SOURCES[src].label,
+    keyword,
+    numFound: base.numFound,
+    items,
+    oaCount: items.filter((x) => x.pdfUrl || x.hasDownload).length,
+    offset,
+    rows,
+    pageFrom,
+    pageTo,
+    cacheHit: pageTo - pageFrom + 1 - fetched,
+    fetchedPages: fetched,
+  });
+}
+
 function optsFor(src, flags, group) {
   const rows = flags.rows ? Number(flags.rows) : DEFAULT_ROWS[src];
   switch (src) {
@@ -149,7 +262,7 @@ function optsFor(src, flags, group) {
   }
 }
 
-async function runSource(src, keyword, flags, group) {
+async function runSource(src, keyword, flags, group, ensureBrowser) {
   const meta = SOURCES[src];
   // 校内渠道若未配置（config.local.js 缺失/占位符）→ 友好跳过，不报错
   if (SITE_OF[src] && isUnconfigured(SITE_OF[src]())) {
@@ -162,11 +275,33 @@ async function runSource(src, keyword, flags, group) {
     };
   }
   try {
-    const mod = require(meta.mod);
-    const data = await mod.search(keyword, optsFor(src, flags, group));
-    // 知网一页固定 20 条，--rows 在这里兜底截断（对其它渠道是 no-op）
-    const want = flags.rows ? Number(flags.rows) : 0;
-    if (want && data.items.length > want) data.items = data.items.slice(0, want);
+    const rows = rowsFor(src, flags);
+    const offset = flags.offset ? Math.max(0, Number(flags.offset)) : 0;
+    let data;
+    if (PAGE_SIZE[src]) {
+      data = await runPagedSource(src, keyword, flags, group, rows, offset, ensureBrowser);
+    } else {
+      const mod = require(meta.mod);
+      const want = offset + rows;
+      const opts = Object.assign({}, optsFor(src, flags, group));
+      if (meta.browser) await ensureBrowser();
+      if (SUPPORTS_OFFSET.has(src)) {
+        opts.offset = offset;
+        opts.rows = rows;
+      } else {
+        opts.rows = want;
+      }
+      data = await mod.search(keyword, opts);
+      if (!SUPPORTS_OFFSET.has(src)) {
+        const totalReturned = data.items.length;
+        data.items = data.items.slice(offset, offset + rows);
+        if (!data.items.length && offset > 0) {
+          data.note = `该渠道本次只返回 ${totalReturned} 条：没有更多（不支持按页跳转）`;
+        }
+      }
+      data.offset = offset;
+      data.rows = rows;
+    }
     // 截断后重算统计，否则会出现"本页 5 条、其中 7 条可下载"这种自相矛盾
     if (typeof data.oaCount === 'number') {
       data.oaCount = data.items.filter((x) => x.pdfUrl).length;
@@ -273,6 +408,9 @@ function renderText(results, keyword, meta) {
       L.push(
         `  命中 ${r.numFound} 条 · 本页 ${r.items.length} 条 · 其中 ${r.oaCount} 条可直接下 PDF`
       );
+      if (r.offset > 0 || r.cacheHit > 0) {
+        L.push(`  🗃️ 增量读取：第 ${r.offset + 1}–${r.offset + r.items.length} 条（复用缓存 ${r.cacheHit || 0} 页，新抓 ${r.fetchedPages || 0} 页）`);
+      }
       if (meta.linkMode === 'detail') {
         const miss = r.items.filter((x) => !(x.detailVerified && x.detailUrl)).length;
         if (miss > 0) {
@@ -695,6 +833,11 @@ async function main() {
   const { flags, keyword } = parseArgs(process.argv.slice(2));
 
   if (flags.check) return cmdCheck();
+  if (flags['clear-cache']) {
+    const n = cache.clear();
+    console.error(`🗑️ 已清理缓存 ${n} 个（${cache.cacheDir()}）`);
+    return;
+  }
   if (!keyword) {
     console.log(
       '用法: node find.js "<关键词>" [--src=渠道/分组] [--rows=N] [--pages=N]\n' +
@@ -705,7 +848,8 @@ async function main() {
         '      默认: papers+code（**不含公开库、不查书**；公开库显式 --src=public）\n' +
         '                      [--type=硕士|博士|期刊|会议|图书|学位论文|报纸] [--lang=python] [--min-stars=N] [--en]\n' +
         '                      [--headless] [--show-chrome] [--field=bookname|author|catalog|fulltext]\n' +
-        '                      [--link=detail|article] [--json] [--md] [--save] [--keep-chrome]\n' +
+        '                      [--link=detail|article] [--offset=N] [--no-cache] [--refresh] [--cache-ttl=SEC]\n' +
+        '                      [--json] [--md] [--save] [--keep-chrome] [--clear-cache]\n' +
         '      node find.js --check'
     );
     process.exit(1);
@@ -763,14 +907,12 @@ async function main() {
   if (flags.headless) process.env.LITSEARCH_HEADLESS = '1';
   if (flags['show-chrome']) process.env.LITSEARCH_HEADLESS = '0';
 
-  // 需要浏览器的渠道先确保 Chrome 起来
-  const needBrowser = wanted.some(
-    (s) => SOURCES[s].browser && !(SITE_OF[s] && isUnconfigured(SITE_OF[s]()))
-  );
-  let startedChrome = false;
-  if (needBrowser) {
+  // 浏览器按需启动（页级缓存全命中时不启动 Chrome，能做到"秒回"）
+  let chromeStarted = false;
+  async function ensureBrowser() {
+    if (chromeStarted) return;
     const { started } = await ensureChrome({ quiet: !!flags.json });
-    startedChrome = started;
+    chromeStarted = started;
   }
 
   // HTTP 渠道并行；浏览器渠道串行（共用同一个浏览器，避免抢页面）
@@ -779,11 +921,11 @@ async function main() {
 
   const results = [];
   const httpPromise = Promise.all(
-    httpSrcs.map(async (s) => ({ s, r: await runSource(s, keyword, flags, srcGroup[s]) }))
+    httpSrcs.map(async (s) => ({ s, r: await runSource(s, keyword, flags, srcGroup[s], ensureBrowser) }))
   );
   const browserChain = (async () => {
     const out = [];
-    for (const s of browserSrcs) out.push({ s, r: await runSource(s, keyword, flags, srcGroup[s]) });
+    for (const s of browserSrcs) out.push({ s, r: await runSource(s, keyword, flags, srcGroup[s], ensureBrowser) });
     return out;
   })();
 
@@ -793,7 +935,7 @@ async function main() {
   for (const s of wanted) results.push(byName.get(s));
 
   // 汇总校园网状态。知网和 SPIS 任一识别出机构，就说明 IP 认证生效。
-  const willStop = startedChrome && !flags['keep-chrome'];
+  const willStop = chromeStarted && !flags['keep-chrome'];
   const campusRes =
     results.find((r) => r.source === 'cnki' && r.onCampus) ||
     results.find((r) => r.source === 'spis' && r.onCampus) ||
@@ -805,6 +947,8 @@ async function main() {
     institution: campusRes ? campusRes.institution || '' : '',
     keyword,
     sources: wanted,
+    offset: flags.offset ? Number(flags.offset) : 0,
+    rows: flags.rows ? Number(flags.rows) : null,
     linkMode,
     stoppedChrome: willStop,
     skipped,

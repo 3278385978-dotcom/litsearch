@@ -52,12 +52,13 @@ async function search(keyword, opts = {}) {
   const kw = String(keyword).trim();
   const tokens = kw.split(/\s+/).filter(Boolean);
 
-  const first = await query(buildQuery(kw), max, sortBy);
+  const offset = Math.max(0, Number(opts.offset) || 0);
+  const first = await query(buildQuery(kw), max, sortBy, offset);
   if (first.items.length || tokens.length < 2) return withHint(first, kw);
 
   // 降级：短语无结果 → 词与词 AND
   const andQuery = tokens.map((t) => `all:${t}`).join(' AND ');
-  const second = await query(andQuery, max, sortBy);
+  const second = await query(andQuery, max, sortBy, offset);
   if (second.items.length) {
     second.note = `短语检索无结果，已自动改用组合检索：${andQuery}`;
     return second;
@@ -76,10 +77,10 @@ function withHint(res, keyword) {
 }
 
 /** 真正发一次请求 */
-async function query(searchQuery, max, sortBy) {
+async function query(searchQuery, max, sortBy, start = 0) {
   const url =
     `${API}?search_query=${encodeURIComponent(searchQuery)}` +
-    `&start=0&max_results=${max}&sortBy=${sortBy}&sortOrder=descending`;
+    `&start=${start}&max_results=${max}&sortBy=${sortBy}&sortOrder=descending`;
 
   const res = await fetch(url, { headers: { 'User-Agent': 'litsearch/1.0' } });
   if (!res.ok) throw new Error(`arXiv HTTP ${res.status}`);
